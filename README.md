@@ -6,5 +6,8 @@ Message timestamps are ignored so this script needs to be run often with
 cron for the timestamps on Telegram to be a reasonable approximation.
 
 NOTES:
-* Find your Telegram user ID by messaging @chatid_echo_bot
-* You have to authorize your telegram bot by starting a conversation with it
+* Find your Telegram user ID by messaging @chatid_echo_bot .
+* You have to authorize your telegram bot by starting a conversation with it.
+* The sensitive information like bot tokens are stored in a separate file. (format of KEYNAME: VALUE)
+* A run file is used to remember the latest message ID numbers, which must be writable by the user.
+* The assumption is this script is run every five minutes by cron.
