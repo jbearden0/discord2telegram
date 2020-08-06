@@ -15,6 +15,7 @@ use Try::Tiny;
 # cron for the timestamps on Telegram to be a reasonable approximation.
 # Note1: Find your Telegram user ID by messaging @chatid_echo_bot
 # Note2: You have to authorize your telegram bot by starting a conversation
+# Note3: Post replies to a Discord webhook token if one is defined
 
 my $RunFile = '/var/run/discord2telegram';
 my $ConfigFile = '/etc/discord2telegram.conf';
@@ -22,6 +23,7 @@ my $LogFile = '';
 my $LogLevel = 3;
 my $Verbose = 0;
 my $DiscordBot = '';
+my $DiscordHook = '';
 my $DiscordSvr = 0;
 my $TelegramBot = '';
 my $TelegramUsr = 0;
@@ -43,10 +45,11 @@ if (!$cfg || !$cfg->param('DISCORDBOT') || !$cfg->param('DISCORDID') ||
     !$cfg->param('TELEGRAMBOT') || !$cfg->param('TELEGRAMID')) {
   NeoUtil::LogThis("Invalid configuration file! ($ConfigFile)",1);
 } else  {
-  $DiscordBot = $cfg->param('DISCORDBOT'); # Discord bot token
-  $DiscordSvr = $cfg->param('DISCORDID'); # Discord service ID
   $TelegramBot = $cfg->param('TELEGRAMBOT'); # Telegram bot token
   $TelegramUsr = $cfg->param('TELEGRAMID'); # Telegram user ID
+  $DiscordBot = $cfg->param('DISCORDBOT'); # Discord bot token
+  $DiscordSvr = $cfg->param('DISCORDID'); # Discord service ID
+  if ($cfg->param('DISCORDHOOK')) {$DiscordHook = $cfg->param('DISCORDHOOK');}
   if ($cfg->param('RUNFILE')) { $RunFile = $cfg->param('RUNFILE'); }
   if ($cfg->param('CONFFILE')) { $ConfigFile = $cfg->param('CONFFILE'); }
   if ($cfg->param('LOGFILE')) { $LogFile = $cfg->param('LOGFILE'); }
@@ -75,7 +78,7 @@ if ($Res && $Res->is_success) {
               for my $Embed (@{$Msg->{embeds}}) {
                 push(@Embeds, $Embed->{description});
               }
-            }            
+            }
             $Messages->{$Msg->{id}} = $Channel->{name} . ' ' .
               $Author . ': ' . join("\n", @Embeds);
           }
@@ -88,11 +91,6 @@ if ($Res && $Res->is_success) {
     }
   }
 
-  if (open(FILE, ">", $RunFile)) {
-    print(FILE EncodeJSON($LastInfo));
-    close(FILE);
-  }
-
   LogThis("Posting messages...", 4);
   $Target = 'https://api.telegram.org/bot' . $TelegramBot . '/sendMessage';
   for my $Msg (sort keys %$Messages) {
@@ -102,6 +100,44 @@ if ($Res && $Res->is_success) {
       $Error = "Post message failed. (" . $Res->code . ', ' .
         $Res->message . ')';
     }
+  }
+
+  if ($DiscordHook) {
+    LogThis("Posting replies...", 4);
+    my $Offset = $LastInfo->{Telegram} || 1;
+    $Target = 'https://api.telegram.org/bot' . $TelegramBot . '/getUpdates';
+    $Res = WebPostVals($Target, { offset => $Offset });
+    if ($Res && $Res->is_success) {
+      my $Result = DecodeJSON($Res->decoded_content);
+      if ($Result->{ok} && $Result->{result}) {
+        $Target = 'https://discordapp.com/api/webhooks/' . $DiscordHook;
+        for my $Msg (@{$Result->{result}}) {
+          if ($Msg->{update_id} >= $Offset) {$Offset = $Msg->{update_id} + 1;}
+          $Msg->{message}->{text} =~ s/\"/\'/g;
+          my $UserName = $Msg->{message}->{from}->{username} || 'telegram';
+          my $JSON = "{ \"username\": \"$UserName\", " .
+            "\"content\": \"$Msg->{message}->{text}\" }";
+          my $Header = new HTTP::Headers ('Content-Type' => 'application/json');
+          my $UA = LWP::UserAgent->new();
+          $UA->timeout(30);
+          $UA->agent('curl/7.58.0'); # Discord filters most user agents
+          $Res = $UA->request(new HTTP::Request('POST',$Target,$Header,$JSON));
+          if (!$Res->is_success) {
+            $Error = "Sending replies failed. (" . $Res->code . ', ' .
+              $Res->message . ')';
+          }
+        }
+        $LastInfo->{Telegram} = $Offset;
+      }
+    } else {
+      $Error = "Getting replies failed. (" . $Res->code . ', ' .
+        $Res->message . ')';
+    }
+  }
+
+  if (open(FILE, ">", $RunFile)) {
+    print(FILE EncodeJSON($LastInfo));
+    close(FILE);
   }
 } else {
   $Error = "Get channels failed. (" . $Res->code . ', ' . $Res->message . ')';
