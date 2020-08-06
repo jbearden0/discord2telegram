@@ -48,7 +48,7 @@ if (!$cfg || !$cfg->param('DISCORDBOT') || !$cfg->param('DISCORDID') ||
   $TelegramBot = $cfg->param('TELEGRAMBOT'); # Telegram bot token
   $TelegramUsr = $cfg->param('TELEGRAMID'); # Telegram user ID
   $DiscordBot = $cfg->param('DISCORDBOT'); # Discord bot token
-  $DiscordSvr = $cfg->param('DISCORDID'); # Discord service ID
+  $DiscordSvr = $cfg->param('DISCORDID'); # Discord server ID
   if ($cfg->param('DISCORDHOOK')) {$DiscordHook = $cfg->param('DISCORDHOOK');}
   if ($cfg->param('RUNFILE')) { $RunFile = $cfg->param('RUNFILE'); }
   if ($cfg->param('CONFFILE')) { $ConfigFile = $cfg->param('CONFFILE'); }
