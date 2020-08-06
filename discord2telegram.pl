@@ -69,9 +69,13 @@ if ($Res && $Res->is_success) {
           for my $Msg (@{DecodeJSON($Res->decoded_content)}) {
             my @Embeds;
             my $Author = $Msg->{author}->{username};
-            for my $Embed (@{$Msg->{embeds}}) {
-              push(@Embeds, $Embed->{description});
-            }
+            if ($Msg->{content}) {
+              push(@Embeds, $Msg->{content});
+            } else {
+              for my $Embed (@{$Msg->{embeds}}) {
+                push(@Embeds, $Embed->{description});
+              }
+            }            
             $Messages->{$Msg->{id}} = $Channel->{name} . ' ' .
               $Author . ': ' . join("\n", @Embeds);
           }
